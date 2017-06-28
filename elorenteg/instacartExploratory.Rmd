@@ -286,6 +286,10 @@ data <- list(productId = 24852)
 product_times_ordered_txt %>%
   whisker.render(data) %>%
   cat
+
+
+whisker.render(product_times_ordered_txt, data) %>%
+  cat
 ```
 ```{r}
 product_times_ordered_txt %>%
@@ -298,8 +302,57 @@ product_times_ordered_txt %>%
 
 ## Questions
 
-* For given department, plot the most popular product (with templating department).
+* For given department, give a list of the 10 most popular product (with templating department).
+```{r}
+queryString <- "
+SELECT op.product_id, product_name, n_orders
+FROM products_tbl pt
+LEFT JOIN (
+  SELECT product_id, COUNT(1) as n_orders
+  FROM order_products__prior_tbl
+  GROUP BY product_id
+) op
+ON pt.product_id = op.product_id
+WHERE department_id = {{departmentId}}
+ORDER BY n_orders DESC
+LIMIT 10
+"
+
+data <- list(departmentId = 10)
+
+whisker.render(queryString, data) %>%
+  cat
+
+queryString %>%
+  whisker.render(data) %>%
+  dbGetQuery(sc, .)
+```
+
 * For given day, rank department popularity.
+```{r}
+queryString <- "
+SELECT op.product_id, product_name, n_orders
+FROM products_tbl pt
+LEFT JOIN (
+  SELECT product_id, COUNT(1) as n_orders
+  FROM order_products__prior_tbl
+  GROUP BY product_id
+) op
+ON pt.product_id = op.product_id
+ORDER BY n_orders DESC
+LIMIT 10
+"
+
+data <- list(day = 1)
+
+whisker.render(queryString, data) %>%
+  cat
+
+queryString %>%
+  whisker.render(data) %>%
+  dbGetQuery(sc, .)
+
+```
 
 ## More on orders (Window Functions)
 
@@ -332,4 +385,27 @@ FROM orders_tbl
 WHERE user_id <= 10 
 ")
 ```
+* Product that is usually orders in numerous baskets
 
+```{r}
+"
+SELECT product_id
+,   AVG(products_number) AS avg_products_number
+FROM (
+    SELECT order_id
+    ,   product_id
+    ,   COUNT(product_id)  OVER(partition by order_id) AS products_number
+    FROM order_products__train_tbl
+) pn
+GROUP BY product_id
+ORDER BY avg_products_number DESC
+LIMIT 100
+" %>%
+dbGetQuery(sc, .)
+```
+
+* Could modify the query and add product name?
+
+* Product that is usually orders in small baskets.
+
+* For 10 first users and all their orders find days since first order.
