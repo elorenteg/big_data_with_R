@@ -220,9 +220,8 @@ queryResult
 ```{r}
 queryString <- "
 SELECT order_id, COUNT(1) AS n_products
-FROM order_products__train_tbl
+FROM order_products__prior_tbl
 GROUP BY order_id
-LIMIT 300
 "
 
 queryResult <-
@@ -237,6 +236,44 @@ queryResult %>%
         xlab("Numer of products") +
         ylab("Count of orders") +
         theme_minimal()
+```
+```{r}
+## Much faster! - Hive is aggregating the num of orders that have each num of products
+
+queryString <- "
+SELECT n_products, COUNT(order_id) AS n_orders
+FROM (
+    SELECT order_id, COUNT(1) AS n_products
+    FROM order_products__prior_tbl
+    GROUP BY order_id
+) op
+WHERE n_products <= 50
+GROUP BY n_products
+"
+
+queryResult <-
+  dbGetQuery(sc, queryString)
+
+queryResult
+
+queryResult %>%
+  ggplot(aes(n_products, n_orders)) + geom_col(fill='darkorange') +
+        scale_y_continuous(label=scales::comma) +
+        xlab("Numer of products") +
+        ylab("Count of orders") +
+        theme_minimal()
+```
+```{r}
+order_products__prior %>%
+  group_by(order_id) %>%
+  summarise(n_products = n()) %>%
+  group_by(n_products) %>%
+  summarise(n_orders = n()) %>%
+  filter(n_products <= 50) %>%
+  collect %>%
+  ggplot(aes(n_products,n_orders)) +
+  geom_col(fill='darkorange') +
+  theme_minimal()
 ```
 * What is the most popular department?
 ```{r}
@@ -356,8 +393,6 @@ queryString %>%
 
 ## More on orders (Window Functions)
 
-
-
 ```{r}
 dbGetQuery(sc, 
 "
@@ -367,7 +402,6 @@ FROM orders_tbl
 GROUP BY days_since_prior_order
 ") 
 ```
-
 
 ```{r}
 dbGetQuery(sc, 
@@ -385,6 +419,7 @@ FROM orders_tbl
 WHERE user_id <= 10 
 ")
 ```
+
 * Product that is usually orders in numerous baskets
 
 ```{r}
@@ -409,3 +444,31 @@ dbGetQuery(sc, .)
 * Product that is usually orders in small baskets.
 
 * For 10 first users and all their orders find days since first order.
+
+```{r}
+orders %>%
+  filter(user_id <= 10) %>%
+  select(user_id, order_number, days_since_prior_order) %>%
+  arrange(user_id, order_number) %>%
+  mutate(days_since_first_order = cumsum(days_since_prior_order)) %>%
+  mutate(days_since_first_order=ifelse(is.null(days_since_prior_order), 0, days_since_first_order))
+
+dbGetQuery(sc, 
+"SELECT user_id, order_number, days_since_prior_order,
+    SUM(days_since_prior_order) OVER
+        (PARTITION BY user_id ORDER BY order_number ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS
+            days_since_first_order
+FROM orders_tbl
+WHERE user_id <= 10
+")
+
+dbGetQuery(sc, 
+"SELECT user_id, order_number, days_since_prior_order,
+    COALESCE(
+        SUM(days_since_prior_order) OVER (PARTITION BY user_id ORDER BY order_number) 
+    ) AS days_since_first_order
+FROM orders_tbl
+WHERE user_id <= 10
+ORDER BY user_id, order_number
+")
+```

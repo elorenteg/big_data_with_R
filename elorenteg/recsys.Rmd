@@ -11,6 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(sparklyr)
 library(dplyr)
+
+# http://spark.rstudio.com/mllib.html
 ```
 
 ```{r}
@@ -31,6 +33,11 @@ movie_ratings
 ```{r}
 explicit_model <- ml_als_factorization(movie_ratings, iter.max = 5, regularization.parameter = 0.01)
 explicit_model$item.factors
+```
+
+
+```{r}
+explicit_model
 ```
 
 
