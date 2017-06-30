@@ -15,6 +15,7 @@ order_products__prior <- NULL
 order_products__train <- NULL
 orders <- NULL
 products <- NULL
+departments <- NULL
 
 readInstacart <- function() {
   order_products__prior <<- 
@@ -28,6 +29,8 @@ readInstacart <- function() {
   orders <<- spark_read_csv(sc, "orders_tbl", file.path(DATA_DIR, "orders.csv"))
   
   products <<- spark_read_csv(sc, "products_tbl", file.path(DATA_DIR, "products.csv"))
+  
+  departments <<- spark_read_csv(sc, "departments_tbl", file.path(DATA_DIR, "departments.csv"))
 }
 
 
